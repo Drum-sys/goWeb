@@ -199,6 +199,8 @@ insert--向前缀树中插入节点, 客户端发起请求，路径为pattern（
 当匹配到叶子节点时， 即height == len(parts)， n.pattern才被设置为/hello/:lang/ljw。当匹配结束时，我们可以使用n.pattern == ""来判断路由规则是否匹配成功。例如，/p/python虽能成功匹配到:lang，但:lang的pattern值为空
 
 递归的遍历每一层节点，如果没有匹配到当前part的节点，则新建一个。
+
+查询功能，同样也是递归查询每一层的节点，退出规则是，匹配到了*，匹配失败，或者匹配到了第len(parts)层节点
 ```go
 // 插入节点
 func (n *node) insert(pattern string, parts []string, height int) {
@@ -219,5 +221,28 @@ func (n *node) insert(pattern string, parts []string, height int) {
 		n.children = append(n.children, child)
 	}
 	child.insert(pattern, parts, height+1)
+}
+
+// 查找匹配的节点
+func (n *node) search(parts []string, height int) *node {
+	if height == len(parts) || strings.HasPrefix(n.part, "*") {
+		if n.pattern == "" {
+			return nil
+		}
+		return n
+	}
+
+	part := parts[height]
+	children := n.matchChildren(part)
+
+	for _, child := range children {
+		//递归的查询
+		result := child.search(parts, height+1)
+		if result != nil {
+			return result
+		}
+	}
+	return nil
+
 }
 ```
