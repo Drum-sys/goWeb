@@ -117,19 +117,16 @@ func (c *Context) HTML(code int, html string) {
 }
 ```
 
-
-
-
-
-
-
-
-
-
+将router独立出来方便以后增强， 将request和response替换为Context
 ```go
+
 // 将router独立出来方便以后增强
 type Router struct {
 	handlers map[string]HandlerFunc // 路由的处理函数
+}
+
+type Engine struct {
+  router *Router
 }
 
 // 创建Router对象
@@ -151,6 +148,11 @@ func (r *router) handle(c *Context) {
 	} else {
 		c.String(http.StatusNotFound, "404 NOT FOUND: %s\n", c.Path)
 	}
+}
+
+func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	c := newContext(w, req)
+	engine.router.handle(c)
 }
 
 ```
