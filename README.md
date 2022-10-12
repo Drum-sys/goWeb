@@ -156,9 +156,10 @@ func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 ```
 
-// 前缀树实现动态路由
+## 前缀树实现动态路由
 
 参数匹配:---例如 /p/:lang/doc，可以匹配 /p/c/doc 和 /p/go/doc。
+
 通配*----例如 /static/*filepath，可以匹配/static/fav.ico，也可以匹配/static/js/jQuery.js，这种模式常用于静态服务器，能够递归地匹配子路径。
 ![图片](https://user-images.githubusercontent.com/82791037/195329700-fda7687e-8acd-4474-bc1f-d5b4a75bd7b5.png)
 
