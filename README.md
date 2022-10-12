@@ -154,6 +154,69 @@ func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	c := newContext(w, req)
 	engine.router.handle(c)
 }
-
 ```
 
+// 前缀树实现动态路由
+
+参数匹配:---例如 /p/:lang/doc，可以匹配 /p/c/doc 和 /p/go/doc。
+通配*----例如 /static/*filepath，可以匹配/static/fav.ico，也可以匹配/static/js/jQuery.js，这种模式常用于静态服务器，能够递归地匹配子路径。
+![图片](https://user-images.githubusercontent.com/82791037/195329700-fda7687e-8acd-4474-bc1f-d5b4a75bd7b5.png)
+
+定义节点node, matchChild用于插入时匹配节点， matchChildren用于查询时匹配节点， 都是递归算法
+```go
+
+type node struct {
+	pattern string //待匹配的路由 
+	part string //路由的一部分
+	wildChild bool // 是否精确匹配， 判断是否含有 * || ：
+	children []*node
+}
+
+//找到第一个匹配的节点
+func (n *node) matchChild(part string) *node {
+	for _, child := range n.children {
+		if child.part == part || n.wildChild {
+			return child
+		}
+	}
+	return nil
+}
+
+//寻找所有匹配的节点， 用于查找
+func (n *node) matchChildren(part string) []*node {
+	var nodes []*node
+	for _, child := range n.children {
+		if child.part == part || n.wildChild {
+			nodes = append(nodes, child)
+		}
+	}
+	return nodes
+}
+````
+insert--向前缀树中插入节点, 客户端发起请求，路径为pattern（/hello/:lang/ljw）， part为将pattern分割后的序列， height用来表示树的深度， 初始为0.
+
+当匹配到叶子节点时， 即height == len(parts)， n.pattern才被设置为/hello/:lang/ljw。当匹配结束时，我们可以使用n.pattern == ""来判断路由规则是否匹配成功。例如，/p/python虽能成功匹配到:lang，但:lang的pattern值为空
+
+递归的遍历每一层节点，如果没有匹配到当前part的节点，则新建一个。
+```go
+// 插入节点
+func (n *node) insert(pattern string, parts []string, height int) {
+	if height == len(parts) {
+		n.pattern = pattern
+		//fmt.Println("insert children", n.pattern)
+		return
+	}
+
+	part := parts[height]
+	child := n.matchChild(part)
+
+	if child == nil {
+		child = &node{
+			part: part,
+			wildChild: part[0] == ':' || part[0] == '*',
+		}
+		n.children = append(n.children, child)
+	}
+	child.insert(pattern, parts, height+1)
+}
+```
