@@ -1,6 +1,7 @@
 # goWeb
 
 ## HTTP 重写
+当用户发起GET、POST请求，会调用addrouter方法将handler方法注册到map-router当中， key：GET-/helllo， value：handler函数。Run对http.ListenAndServe进行了封装启动服务器。
 ```go
 
 // HandlerFunc defines the request handler used by goweb
