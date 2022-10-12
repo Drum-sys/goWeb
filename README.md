@@ -335,7 +335,7 @@ func (c *Context) Param(key string) string {
 }
 ```
 
-handle函数调用中getRoute解析
+handle函数调用中getRoute解析参数，返回找到的叶子节点n， 以及将解析到的参数存储到Context中。
 ```go
 func (r *router) handle(c *Context) {
 	n, params := r.getRoute(c.Method, c.Path)
