@@ -348,3 +348,72 @@ func (r *router) handle(c *Context) {
 	}
 }
 ```
+
+## 路由分组实现
+如果没有路由分组需要对每一个路由单独控制， 但是真实得业务场景中，一组路由需要进行相似的处理。同时可以将中间件作用与不同的分组上，避免重复添加。
+
+- 以/post开头的路由匿名可访问。
+- 以/admin开头的路由需要鉴权。
+- 以/api开头的路由是 RESTful 接口，可以对接第三方平台，需要三方平台鉴权。
+
+一般路由分组是通过前缀区分的即prefix属性， RouterGroup需要添加路由则需要引入*Engine.addroute()。
+
+Engine可以被认为是所有路由分组得祖先，自然需要拥有RouteGroup得所有权限，即引入*RouterGroup。同时需要管理所有分组即groups
+```go
+type RouterGroup struct {
+	prefix      string        //路由分组前缀
+	middlewares []HandlerFunc //应用于分组的中间件
+	//parent      *RouterGroup  //子分组的父亲是谁
+	engine      *Engine       // 原先是Engine实现添加路由等， 集成到RouterGroup，既可以分组添加路由，也可以单独添加路由
+}
+
+// Engine implement the interface of ServeHTTP
+type Engine struct {
+	*RouterGroup
+	router *Router
+	groups []*RouterGroup
+}
+```
+
+初始化顺序是，先创建Engine对象， 在创建RouteGroup对象，添加分组
+```go
+// New is the constructor of gee.Engine
+func New() *Engine {
+	engine := &Engine{router: NewRouter()}
+	engine.RouterGroup = &RouterGroup{engine: engine}
+	engine.groups = []*RouterGroup{engine.RouterGroup}
+	return engine
+}
+
+// Group is defined to create a new RouterGroup
+// remember all groups share the same Engine instance
+func (group *RouterGroup) Group(prefix string) *RouterGroup {
+	engine := group.engine
+	newGroup := &RouterGroup{
+		engine: engine,
+		middlewares: make([]HandlerFunc, 0),
+		//parent: group,
+		prefix: group.prefix + prefix, 
+	}
+	engine.groups = append(engine.groups, newGroup)
+	return newGroup
+
+}
+```
+
+增加RouterGroup得addRoute方法添加路由映射。匹配路径为分组前缀+请求路径
+```go
+func (group *RouterGroup) addRoute(method string, comp string, handler HandlerFunc) {
+	pattern := group.prefix + comp
+	group.engine.router.addRoute(method, pattern, handler)
+}
+
+func (group *RouterGroup) GET(pattern string, handler HandlerFunc) {
+	group.addRoute("GET", pattern, handler)
+}
+
+func (group *RouterGroup) POST(pattern string, handler HandlerFunc) {
+	group.addRoute("POST", pattern, handler)
+}
+```
+
