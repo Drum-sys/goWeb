@@ -246,3 +246,105 @@ func (n *node) search(parts []string, height int) *node {
 
 }
 ```
+
+将前缀树应用到router中， Router结构体中添加root， key: GET-/hello, value: node
+
+修改addRoute方法， 将请求的pattern存储到前缀树当中，parsePatten负责解析pattern， 遇到*就结束（*出现在最后）。addrouter中调用insert方法想树中插入节点。
+
+
+```go
+type Router struct {
+	handlers map[string]HandlerFunc // 路由的处理函数
+	roots    map[string]*node // 路由的trie节点
+}
+
+func parsePatten(pattern string) []string {
+	v := strings.Split(pattern, "/")
+
+	parts := make([]string, 0)
+	for _, part := range v {
+		if part != "" {
+			parts = append(parts, part)
+			if part[0] == '*' {
+				break
+			}
+		}
+	}
+	return parts
+}
+
+func (r *Router) addRoute(method string, pattern string, handler HandlerFunc) {
+	parts := parsePatten(pattern)
+	_, ok := r.roots[method]
+	if !ok {
+		r.roots[method] = &node{}
+	}
+	key := method + "-" + pattern
+	r.roots[method].insert(pattern, parts, 0)
+	r.handlers[key] = handler
+}
+```
+
+getRoute负责解析路由参数（包括两种通配符 * ， ：）， 并返回一个map。例如/p/go/doc匹配到/p/:lang/doc，解析结果为：{lang: "go"}，/static/css/geektutu.css匹配到/static/*filepath，解析结果为{filepath: "css/geektutu.css"}
+```go
+func (r *Router) getRoute(method string, path string) (*node, map[string]string) {
+	//searchParts := strings.Split(path, "/")
+	searchParts := parsePatten(path)
+	params := make(map[string]string)
+	root, ok := r.roots[method]
+	if !ok {
+		return nil, nil
+	}
+	n := root.search(searchParts, 0)
+	if n != nil {
+		parts := parsePatten(n.pattern)
+		for index, part := range parts {
+			if part[0] == ':' {
+				params[part[1:]] = searchParts[index]
+			}
+
+			if part[0] == '*' {
+				params[part[1:]] = strings.Join(searchParts[index:], "/")
+				break
+			}
+		}
+		return n, params
+	}
+	return nil, nil
+}
+```
+
+在 HandlerFunc 中，希望能够访问到解析的参数，因此，需要对 Context 对象增加一个属性和方法，来提供对路由参数的访问。我们将解析后的参数存储到Params中，通过c.Param("lang")的方式获取到对应的值。
+
+```go
+type Context struct {
+	// origin objects
+	Writer http.ResponseWriter
+	Req    *http.Request
+	// request info
+	Path   string
+	Method string
+	Params map[string]string
+	// response info
+	StatusCode int
+}
+
+func (c *Context) Param(key string) string {
+	value, _ := c.Params[key]
+	return value
+}
+```
+
+handle函数调用中getRoute解析
+```go
+func (r *router) handle(c *Context) {
+	n, params := r.getRoute(c.Method, c.Path)
+	if n != nil {
+		c.Params = params
+		key := c.Method + "-" + n.pattern
+		r.handlers[key](c)
+	} else {
+		c.String(http.StatusNotFound, "404 NOT FOUND: %s\n", c.Path)
+	}
+}
+```
